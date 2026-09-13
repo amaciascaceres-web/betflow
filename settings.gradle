@@ -1,0 +1,8 @@
+rootProject.name = 'betflow'
+
+include 'services:identity-service'
+include 'services:wallet-service'
+include 'services:sportsbook-service'
+include 'services:betting-service'
+include 'services:settlement-service'
+include 'services:notification-service'

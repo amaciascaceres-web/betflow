@@ -1,0 +1,2 @@
+// Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
+description = 'wallet-service — port 8082, schema wallet'

@@ -1,0 +1,91 @@
+# BetFlow's local infrastructure.
+# The Spring services run outside Docker (./gradlew :services:<x>:bootRun) during
+# development; only what they consume lives here.
+services:
+
+  postgres:
+    image: postgres:17
+    container_name: betflow-postgres
+    environment:
+      POSTGRES_DB: betflow
+      POSTGRES_USER: betflow
+      POSTGRES_PASSWORD: betflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Init scripts only run the first time, against an empty volume.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U betflow -d betflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:4.1.2
+    container_name: betflow-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode: the broker acts as its own controller, no Zookeeper.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093,EXTERNAL://:9092
+      # Two advertised listeners: 'kafka:19092' for other containers, 'localhost:9092'
+      # for the Spring services running on the host.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # A single broker locally: everything replicated drops to a factor of 1.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly (day 2) so their partition count stays deliberate.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 6
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    container_name: betflow-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI (guest/guest)
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+  redis:
+    image: redis:8.2
+    container_name: betflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  kafka-data:
+  rabbitmq-data:
+  redis-data:

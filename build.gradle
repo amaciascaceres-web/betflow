@@ -1,0 +1,42 @@
+plugins {
+    alias(libs.plugins.spring.boot) apply false
+}
+
+// ':services' is only a container for modules, not a service: configure the leaf projects
+// alone, or Gradle would try to build a bootJar with no main class.
+configure(subprojects.findAll { it.childProjects.isEmpty() }) {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+
+    group = 'com.alejandromacias.betflow'
+    version = '1.0-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        // The Spring Boot plugin does not manage versions on its own: the BOM is imported
+        // as a platform so we do not depend on the io.spring.dependency-management plugin.
+        implementation platform(rootProject.libs.spring.boot.bom)
+        testImplementation platform(rootProject.libs.spring.boot.bom)
+
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+        runtimeOnly 'org.postgresql:postgresql'
+
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+}

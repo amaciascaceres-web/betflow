@@ -1,0 +1,2 @@
+// Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
+description = 'notification-service — port 8086, schema notification'

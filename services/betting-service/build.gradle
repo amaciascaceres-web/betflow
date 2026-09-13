@@ -1,0 +1,2 @@
+// Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
+description = 'betting-service — port 8084, schema betting'
