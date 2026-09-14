@@ -46,7 +46,7 @@ is justified by a rule it protects, not by a table it holds.
 | | `FundsReservation` | id, walletId, betId, amount, status (pending / confirmed / released) |
 | Sportsbook | `SportEvent` | id, name, startDate, status (scheduled / in play / finished) |
 | | `Market` | id, sportEventId, type, status (open / closed / resolved) |
-| | `Selection` | id, marketId, name |
+| | `Selection` | id, marketId, name, currentOdds, oddsUpdatedAt |
 | Betting | `Bet` | id, userId, marketId, selectionId, amount, appliedOdds, status |
 | | `BetSagaState` | id, betId, currentStep, status (in progress / completed / failed) |
 | Settlement | `SettlementBatch` | id, marketId, processedAt, totalBets |

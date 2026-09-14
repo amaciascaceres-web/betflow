@@ -2,8 +2,10 @@ package com.alejandromacias.betflow.sportsbook;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 public class SportsbookServiceApplication {
 
     public static void main(String[] args) {

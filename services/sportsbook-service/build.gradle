@@ -1,2 +1,15 @@
 // Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
 description = 'sportsbook-service — port 8083, schema sportsbook'
+
+dependencies {
+    // Only the services that actually publish or consume carry this. identity-service and
+    // wallet-service never will, and keeping it out of the root build makes that visible.
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    // Flyway arrives earlier than the course plans it, because persisting the current price
+    // needs tables and 'ddl-auto: none' provides none. Letting Hibernate create them instead
+    // would leave Flyway facing a schema it did not author. See ADR-002.
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+}

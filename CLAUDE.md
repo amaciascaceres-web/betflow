@@ -52,6 +52,7 @@ services/<name>-service/     one Gradle module per bounded context
 docker/postgres/init/        init scripts (CREATE SCHEMA per service)
 docs/design-response.md      answer to the business brief (no technology named)
 docs/event-flows.md          messages, triggers and DB state per failure scenario
+services/*/src/main/resources/db/migration/  Flyway migrations (sportsbook from day 2)
 docs/adr/                    ADR-00X-*.md
 docs/diagrams/               context-map.md, use-cases.md (Mermaid)
 plan-betflow_v5.html         the course document (untracked)
@@ -66,7 +67,7 @@ Main class: `<Service>ServiceApplication`.
 |---|---|---|---|
 | identity-service | 8081 | identity | `User(id, email, passwordHash, createdAt)`, `Role(id, name)` |
 | wallet-service | 8082 | wallet | `Wallet(id, userId, balance, version)`, `LedgerEntry(…, type, amount, timestamp, betReferenceId)`, `FundsReservation(…, amount, status)`, `processed_commands` |
-| sportsbook-service | 8083 | sportsbook | `SportEvent(id, name, startDate, status)`, `Market(…, type, status)`, `Selection(id, marketId, name)` — publishes `OddsChanged` |
+| sportsbook-service | 8083 | sportsbook | `SportEvent(id, name, startDate, status)`, `Market(…, type, status)`, `Selection(id, marketId, name, currentOdds, oddsUpdatedAt)` — publishes `OddsChanged` |
 | betting-service | 8084 | betting | `Bet(…, amount, appliedOdds, status)`, `BetSagaState(…, currentStep, status)`, `processed_events` |
 | settlement-service | 8085 | settlement | `SettlementBatch(…, processedAt, totalBets)`, `Payout(id, betId UNIQUE, amount, status)` |
 | notification-service | 8086 | notification | `NotificationLog(…, type, channel, status, sentAt)` |

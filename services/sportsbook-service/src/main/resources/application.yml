@@ -8,13 +8,32 @@ spring:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/betflow?currentSchema=sportsbook
     username: ${POSTGRES_USER:betflow}
     password: ${POSTGRES_PASSWORD:betflow}
+  flyway:
+    enabled: true
+    schemas: sportsbook
+    default-schema: sportsbook
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      # Flyway owns the schema. 'validate' turns any drift between an entity and its migration
+      # into a startup failure instead of a bug found at runtime.
+      ddl-auto: validate
     properties:
       hibernate:
         default_schema: sportsbook
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # acks=all and idempotence are one package, not independent knobs: enabling idempotence
+      # requires acks=all, retries > 0 and max.in.flight <= 5, and the producer refuses to start
+      # otherwise. Idempotence is already the client default — stated here to record the intent,
+      # because a default can change and a reader cannot tell a default from a decision.
+      acks: all
+      properties:
+        enable.idempotence: true
 
 management:
   endpoints:
@@ -24,3 +43,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+betflow:
+  odds-simulator:
+    enabled: true
+    interval-ms: 2500
