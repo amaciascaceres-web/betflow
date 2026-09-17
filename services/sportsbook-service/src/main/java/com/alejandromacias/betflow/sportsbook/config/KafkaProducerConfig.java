@@ -30,8 +30,24 @@ public class KafkaProducerConfig {
         DefaultKafkaProducerFactory<String, OddsChangedEvent> factory =
                 new DefaultKafkaProducerFactory<>(properties.buildProducerProperties(null));
         factory.setKeySerializer(new StringSerializer());
-        factory.setValueSerializer(new JsonSerializer<>(objectMapper));
+        factory.setValueSerializer(oddsValueSerializer(objectMapper));
         return factory;
+    }
+
+    /**
+     * Type headers are turned off deliberately. By default the serializer stamps a
+     * {@code __TypeId__} header carrying this service's fully-qualified class name, and a
+     * consumer's deserializer reads it to decide what to build. That makes a Java package
+     * structure part of a published contract: renaming a class here would break consumers, and
+     * every consumer would need this service's classes on its classpath — the opposite of a
+     * bounded context owning its own model.
+     *
+     * <p>What is published is JSON. Each consumer maps that JSON onto whatever type it owns.
+     */
+    private JsonSerializer<OddsChangedEvent> oddsValueSerializer(ObjectMapper objectMapper) {
+        JsonSerializer<OddsChangedEvent> serializer = new JsonSerializer<>(objectMapper);
+        serializer.setAddTypeInfo(false);
+        return serializer;
     }
 
     @Bean

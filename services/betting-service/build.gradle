@@ -1,2 +1,9 @@
 // Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
 description = 'betting-service — port 8084, schema betting'
+
+dependencies {
+    // Only the services that actually publish or consume carry this. identity-service and
+    // wallet-service never will, and keeping it out of the root build makes that visible.
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+}
