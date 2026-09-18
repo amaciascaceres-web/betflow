@@ -8,10 +8,20 @@ spring:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/betflow?currentSchema=betting
     username: ${POSTGRES_USER:betflow}
     password: ${POSTGRES_PASSWORD:betflow}
+    hikari:
+      # Sets the connection's search_path, so an unqualified table name in a native query
+      # resolves to this service's schema without hard-coding the schema into the SQL.
+      schema: betting
+  flyway:
+    enabled: true
+    schemas: betting
+    default-schema: betting
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      # Flyway owns the schema. 'validate' turns any drift between an entity and its migration
+      # into a startup failure instead of a bug found at runtime.
+      ddl-auto: validate
     properties:
       hibernate:
         default_schema: betting

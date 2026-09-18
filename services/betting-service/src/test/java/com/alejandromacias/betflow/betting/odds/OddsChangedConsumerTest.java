@@ -3,6 +3,7 @@ package com.alejandromacias.betflow.betting.odds;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.alejandromacias.betflow.betting.support.PostgresBackedTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -11,7 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -40,21 +43,17 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * registration itself — and a container assembled by hand in the test would be re-declaring all
  * of it and proving only that the test can configure Kafka.
  *
- * <p>Postgres is kept out of it: betting-service owns no table yet, so excluding the datasource
- * autoconfiguration lets the suite run with nothing but a JVM. The day that changes, this
- * exclusion has to go and the database has to come from somewhere.
+ * <p>Postgres is real, from a container. Until day 4 this test excluded the datasource because
+ * the listener's effect was a log line; now that it writes a row, that shortcut would be testing
+ * a different application from the one that runs.
  */
-@SpringBootTest(properties = {
-        "spring.autoconfigure.exclude="
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}"
-})
+@SpringBootTest(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @EmbeddedKafka(partitions = 6, topics = OddsChangedConsumerTest.TOPIC)
-class OddsChangedConsumerTest {
+class OddsChangedConsumerTest extends PostgresBackedTest {
 
     static final String TOPIC = "odds-changed";
     private static final String GROUP = "betting-service-group";
+    private static final int PARTITIONS = 6;
 
     @Autowired
     private EmbeddedKafkaBroker broker;
@@ -137,25 +136,55 @@ class OddsChangedConsumerTest {
      * a full replay on the next restart.
      */
     @Test
-    void theOffsetAdvancesOnlyOnceTheListenerAcknowledges() throws Exception {
+    void theOffsetAdvancesOnlyOnceTheListenerAcknowledges() {
         UUID marketId = UUID.randomUUID();
         int publishedCount = 5;
-        int partition = publish(marketId, new BigDecimal("1.50"));
-        for (int i = 1; i < publishedCount; i++) {
+        long committedBefore = quiescedCommittedOffset();
+
+        for (int i = 0; i < publishedCount; i++) {
             publish(marketId, new BigDecimal("1.5" + i));
         }
-
         await().atMost(Duration.ofSeconds(20))
                 .until(() -> recordsReceivedFor(marketId).size() == publishedCount);
 
-        // The committed offset is the group's bookmark, and with ack-mode MANUAL nothing advances
-        // it except acknowledge(). Remove that call and this assertion is what notices: the
-        // listener still receives everything, and the group still believes it has read nothing.
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
-                assertThat(KafkaTestUtils.getCurrentOffset(broker.getBrokersAsString(), GROUP, TOPIC, partition))
-                        .isNotNull()
-                        .extracting(org.apache.kafka.clients.consumer.OffsetAndMetadata::offset)
-                        .isEqualTo((long) publishedCount));
+                assertThat(totalCommittedOffset() - committedBefore).isEqualTo(publishedCount));
+    }
+
+    /**
+     * How far the group's bookmark has moved in total, across every partition.
+     *
+     * <p>Summed rather than read from the one partition under test, and measured as a delta rather
+     * than as an absolute: the tests in this class share a broker and a topic, so which partition
+     * a random market key lands on decides nothing, and an absolute offset carries other tests'
+     * traffic in it.
+     */
+    private long totalCommittedOffset() throws Exception {
+        long total = 0;
+        for (int partition = 0; partition < PARTITIONS; partition++) {
+            OffsetAndMetadata committed = KafkaTestUtils.getCurrentOffset(
+                    broker.getBrokersAsString(), GROUP, TOPIC, partition);
+            if (committed != null) {
+                total += committed.offset();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * The same figure, once it has stopped moving. A baseline taken while the previous test's
+     * acknowledgements are still being committed would make this test's delta come out short —
+     * which it did, until the baseline stopped being read in the middle of the traffic it was
+     * meant to exclude.
+     */
+    private long quiescedCommittedOffset() {
+        AtomicLong previousReading = new AtomicLong(-1);
+        await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            long reading = totalCommittedOffset();
+            boolean unchanged = reading == previousReading.getAndSet(reading);
+            return unchanged;
+        });
+        return previousReading.get();
     }
 
     private int publish(UUID marketId, BigDecimal odds) {

@@ -5,7 +5,11 @@ sports betting company to build real depth in distributed systems, microservices
 Sagas, CQRS and observability. The end goal is being able to **defend every architectural
 decision in an interview**.
 
-The scope's source of truth is `plan-betflow_v5.html` (a 20-day / 4-week course, ~2h a day).
+The scope's source of truth is `plan-betflow_v6.html` (a 20-day / 4-week course, ~2h a day).
+**v6 supersedes v5**: after day 4's decision, the deduplication table moved out of
+betting-service (where `OddsChanged` is naturally idempotent and needs none) and into day 9,
+where `reserveFunds` is accumulative and genuinely needs it. Days 4, 5, 9 and 12 differ from
+v5; everything else is unchanged.
 It is deliberately untracked — see `.gitignore`. There is no need to re-read it in full: the day
 index below summarises what each day covers. When the detail of a specific day is needed, extract
 only that section from the HTML.
@@ -43,7 +47,7 @@ only that section from the HTML.
 | RabbitMQ | `rabbitmq:4.1-management` (UI on :15672, guest/guest) |
 | Redis | `redis:8.2` (CQRS read model, day 14) |
 | Zipkin | `openzipkin/zipkin:3.6` (day 16) |
-| Migrations | Flyway (from day 4 on) — never hand-written DDL |
+| Migrations | Flyway — sportsbook from day 2, betting from day 4; never hand-written DDL |
 
 ## Layout
 
@@ -55,7 +59,7 @@ docs/event-flows.md          messages, triggers and DB state per failure scenari
 services/*/src/main/resources/db/migration/  Flyway migrations (sportsbook from day 2)
 docs/adr/                    ADR-00X-*.md
 docs/diagrams/               context-map.md, use-cases.md (Mermaid)
-plan-betflow_v5.html         the course document (untracked)
+plan-betflow_v6.html         the course document (untracked)
 ```
 
 Base package: `com.alejandromacias.betflow.<service>`.
@@ -68,7 +72,7 @@ Main class: `<Service>ServiceApplication`.
 | identity-service | 8081 | identity | `User(id, email, passwordHash, createdAt)`, `Role(id, name)` |
 | wallet-service | 8082 | wallet | `Wallet(id, userId, balance, version)`, `LedgerEntry(…, type, amount, timestamp, betReferenceId)`, `FundsReservation(…, amount, status)`, `processed_commands` |
 | sportsbook-service | 8083 | sportsbook | `SportEvent(id, name, startDate, status)`, `Market(…, type, status)`, `Selection(id, marketId, name, currentOdds, oddsUpdatedAt)` — publishes `OddsChanged` |
-| betting-service | 8084 | betting | `Bet(…, amount, appliedOdds, status)`, `BetSagaState(…, currentStep, status)`, `processed_events` |
+| betting-service | 8084 | betting | `Bet(…, amount, appliedOdds, status)`, `BetSagaState(…, currentStep, status)`, `selection_odds` (local read projection, not the source of truth for a price) |
 | settlement-service | 8085 | settlement | `SettlementBatch(…, processedAt, totalBets)`, `Payout(id, betId UNIQUE, amount, status)` |
 | notification-service | 8086 | notification | `NotificationLog(…, type, channel, status, sentAt)` |
 | analytics-service | 8087 | analytics | no fixed entity — day 13 |
@@ -89,9 +93,12 @@ Postgres: database `betflow`, user/password `betflow`/`betflow`, port 5432.
 - **RabbitMQ = commands** (an order aimed at one recipient, with a DLQ): direct exchange
   `wallet-commands`, routing key `wallet.reserve-funds`, queue `wallet.reserve-funds.queue`,
   DLX `wallet-commands.dlx` → `wallet.reserve-funds.dlq`.
-- **Idempotence**: every consumer deduplicates on the message's own id (`event_id` /
-  `command_id`) **inside the same transaction as the business effect**. Settlement additionally
-  deduplicates through `UNIQUE(bet_id)` on `Payout`.
+- **Idempotence**: decided per consumer, from the shape of its own effect — not applied by
+  default. Betting's `OddsChanged` effect is an overwrite ("set odds to X"), so it needs no
+  dedup table; see ADR-004. Where a dedup table *is* needed it lives in the **same transaction
+  as the business effect** and keys on the message's own id: `processed_commands`
+  (`command_id`) in wallet, day 9. Settlement deduplicates at the effect level instead,
+  through `UNIQUE(bet_id)` on `Payout`, because one message produces N payouts.
 
 ## Commands
 
@@ -110,14 +117,14 @@ docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server loca
 1. Bounded contexts: 6 modules + docker-compose + ADR-001. *(Decision: split Wallet from Betting)*
 2. Kafka producer: topic `odds-changed` with 6 partitions, key `marketId`, `acks=all`, odds simulator. *(Decision: partition count)*
 3. Consumers and consumer groups: `@KafkaListener` with `ack-mode: MANUAL`, 2 instances, rebalancing.
-4. Idempotent consumption: `processed_events` table via Flyway, dedup in the same transaction. *(Decision: naturally idempotent vs dedup table)*
+4. Idempotent consumption: Flyway + `selection_odds` projection, overwrite effect, last-writer-wins by event timestamp. No dedup table here. *(Decision: naturally idempotent vs dedup table)*
 5. Review (no code).
 
 **Week 2 — the place-a-bet Saga**
 6. Wallet: ledger + `@Version` (optimistic locking), `reserveFunds`/`confirmFunds`/`releaseFunds`. *(Decision: optimistic vs pessimistic)*
 7. Orchestrated Saga, happy path: `BettingSagaOrchestrator`, `BetSagaState`. *(Decision: orchestration vs choreography)*
 8. Saga: compensation + business vs technical exception hierarchy.
-9. RabbitMQ: `ReserveFundsCommand` replaces the REST call, DLQ and retries. *(Decision: Kafka vs RabbitMQ)*
+9. RabbitMQ: `ReserveFundsCommand` replaces the REST call, DLQ and retries; first real dedup table (`processed_commands`). *(Decision: Kafka vs RabbitMQ)*
 10. Review (no code).
 
 **Week 3 — settlement, choreography, CQRS**

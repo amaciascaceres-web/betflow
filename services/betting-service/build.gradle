@@ -6,4 +6,14 @@ dependencies {
     // wallet-service never will, and keeping it out of the root build makes that visible.
     implementation 'org.springframework.kafka:spring-kafka'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    // A real Postgres for the tests rather than an in-memory stand-in. The projection's whole
+    // correctness argument rests on ON CONFLICT and on how a timestamp comparison behaves, and
+    // neither is worth verifying against a database that only approximates Postgres.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
 }

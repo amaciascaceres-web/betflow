@@ -77,6 +77,15 @@ What is shared is the JSON on the topic. Each side maps it onto a type it owns. 
 reasoning applies to the topic name, which betting declares as its own constant instead of
 importing sportsbook's.
 
+**What the separate copy protects against, and what it does not.** It decouples the two services
+from each other's *class* names: renaming or moving `OddsChangedEvent` in sportsbook is now
+invisible here. It does nothing about *field* names, which travel in the JSON itself. Measured on
+this consumer: an added field is ignored silently, and a renamed one arrives as `null` — no
+exception, no log, just a missing value that surfaces later and far from its cause. Additive
+changes are safe; a rename is a breaking change to the contract regardless of how either side
+declares its type. Nothing here enforces that yet, and the omission is recorded rather than
+solved.
+
 ### Consequence: the producer stops publishing a Java class name
 
 By default the JSON serializer stamps a `__TypeId__` header carrying the producer's
