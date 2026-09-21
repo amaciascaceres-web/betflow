@@ -47,7 +47,7 @@ only that section from the HTML.
 | RabbitMQ | `rabbitmq:4.1-management` (UI on :15672, guest/guest) |
 | Redis | `redis:8.2` (CQRS read model, day 14) |
 | Zipkin | `openzipkin/zipkin:3.6` (day 16) |
-| Migrations | Flyway — sportsbook from day 2, betting from day 4; never hand-written DDL |
+| Migrations | Flyway — sportsbook day 2, betting day 4, wallet day 6; never hand-written DDL |
 
 ## Layout
 
@@ -121,7 +121,7 @@ docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server loca
 5. Review (no code).
 
 **Week 2 — the place-a-bet Saga**
-6. Wallet: ledger + `@Version` (optimistic locking), `reserveFunds`/`confirmFunds`/`releaseFunds`. *(Decision: optimistic vs pessimistic)*
+6. Wallet: append-only ledger + `@Version`, retry outside the transaction, guarded status transitions. *(Decision: optimistic vs pessimistic vs conditional update)*
 7. Orchestrated Saga, happy path: `BettingSagaOrchestrator`, `BetSagaState`. *(Decision: orchestration vs choreography)*
 8. Saga: compensation + business vs technical exception hierarchy.
 9. RabbitMQ: `ReserveFundsCommand` replaces the REST call, DLQ and retries; first real dedup table (`processed_commands`). *(Decision: Kafka vs RabbitMQ)*

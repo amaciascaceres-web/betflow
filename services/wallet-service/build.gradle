@@ -1,2 +1,13 @@
 // Shared configuration (Java 17, Spring Boot BOM, starters, test) lives in the root build.gradle.
 description = 'wallet-service — port 8082, schema wallet'
+
+dependencies {
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    // A real Postgres for the tests. What is under test here is a row lock, a version check and
+    // a conditional update deciding a winner — none of which an in-memory stand-in can answer for.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
+}
