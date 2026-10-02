@@ -122,7 +122,7 @@ docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server loca
 
 **Week 2 — the place-a-bet Saga**
 6. Wallet: append-only ledger + `@Version`, retry outside the transaction, guarded status transitions. *(Decision: optimistic vs pessimistic vs conditional update)*
-7. Orchestrated Saga, happy path: `BettingSagaOrchestrator`, `BetSagaState`. *(Decision: orchestration vs choreography)*
+7. Orchestrated Saga, happy path: `BettingSagaOrchestrator`, `BetSagaState`, REST on wallet and sportsbook, seeded wallets. *(Decision: orchestration vs choreography)*
 8. Saga: compensation + business vs technical exception hierarchy.
 9. RabbitMQ: `ReserveFundsCommand` replaces the REST call, DLQ and retries; first real dedup table (`processed_commands`). *(Decision: Kafka vs RabbitMQ)*
 10. Review (no code).

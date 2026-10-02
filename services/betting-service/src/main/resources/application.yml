@@ -52,3 +52,11 @@ management:
   endpoint:
     health:
       show-details: always
+
+betflow:
+  # Where the saga's two synchronous steps go. Plain host and port while everything runs on one
+  # machine; the day this is deployed anywhere else, these are the two values that change.
+  sportsbook:
+    base-url: ${SPORTSBOOK_URL:http://localhost:8083}
+  wallet:
+    base-url: ${WALLET_URL:http://localhost:8082}
